@@ -1,0 +1,39 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "static-site",
+      "url": "http://localhost:5173"
+    },
+    {
+      "name": "realtor-booking",
+      "runtimeExecutable": "C:\\agent-os\\run-realtor-booking.cmd",
+      "runtimeArgs": [],
+      "port": 3000
+    },
+    {
+      "name": "realtor-competitor-board",
+      "runtimeExecutable": "C:\\agent-os\\run-realtor-competitor-board.cmd",
+      "runtimeArgs": [],
+      "port": 3001
+    },
+    {
+      "name": "listing-form-tool",
+      "runtimeExecutable": "C:\\agent-os\\run-listing-form.cmd",
+      "runtimeArgs": [],
+      "port": 3100
+    },
+    {
+      "name": "legal-training-db",
+      "runtimeExecutable": "C:\\agent-os\\run-legal-training-db.cmd",
+      "runtimeArgs": [],
+      "port": 3200
+    },
+    {
+      "name": "control-center",
+      "runtimeExecutable": "C:\\agent-os\\run-control-center.cmd",
+      "runtimeArgs": [],
+      "port": 3300
+    }
+  ]
+}
