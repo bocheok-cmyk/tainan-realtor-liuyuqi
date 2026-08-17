@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { usernameToEmail } from "@/lib/supabase/username";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -17,7 +18,10 @@ export default function LoginPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: usernameToEmail(username),
+      password,
+    });
 
     setPending(false);
 
@@ -40,12 +44,13 @@ export default function LoginPage() {
         <p className="mt-1 text-sm text-text/70">登入後台</p>
 
         <label className="mt-6 block text-sm">
-          Email
+          帳號
           <input
-            type="email"
+            type="text"
+            autoComplete="username"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="mt-1 h-11 w-full rounded-input border border-border px-3 outline-none focus:border-primary"
           />
         </label>
@@ -54,6 +59,7 @@ export default function LoginPage() {
           密碼
           <input
             type="password"
+            autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}

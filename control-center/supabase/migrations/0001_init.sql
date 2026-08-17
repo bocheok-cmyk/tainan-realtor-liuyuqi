@@ -8,6 +8,7 @@ create extension if not exists "pgcrypto";
 -- ── agents ──────────────────────────────────────────────
 create table agents (
   id uuid primary key references auth.users (id) on delete cascade,
+  username text not null unique,
   display_name text not null,
   role text not null default 'owner' check (role in ('owner', 'member')),
   created_at timestamptz not null default now()
@@ -147,20 +148,45 @@ create policy "blog_posts_admin_all" on blog_posts for all using (auth.role() = 
 create policy "blog_posts_public_read_published" on blog_posts for select
   using (status = 'published');
 
+-- ── post_drafts ─────────────────────────────────────────
+-- 她自己寫的初稿，是發文系統的共同來源：一篇初稿可以同時發到多個平台
+-- （FB/IG/Threads/網站），潤飾只做一次，排版優化(pangu-spacing)套用在
+-- 每個平台各自的 social_queue 列上（Threads 之後可能有自己的改寫規則）。
+create table post_drafts (
+  id uuid primary key default gen_random_uuid(),
+  raw_draft text not null,
+  polished_text text,
+  polish_status text not null default 'none'
+    check (polish_status in ('none', 'pending', 'done', 'failed')),
+  created_by uuid references agents (id),
+  created_at timestamptz not null default now()
+);
+
+alter table post_drafts enable row level security;
+create policy "post_drafts_all" on post_drafts for all using (auth.role() = 'authenticated');
+
 -- ── social_queue ────────────────────────────────────────
 -- 刻意沒有任何「自動發布」相關欄位或狀態值。發布永遠是 Claude 操作已登入瀏覽器、
 -- 使用者確認後才動手，這裡只負責記錄「準備好了」跟「已經人工貼出去了」。
+-- 一篇初稿勾選多個平台 = 多列，不是一列塞多個平台，方便每個平台各自的
+-- 確認/發布狀態獨立追蹤。
 create table social_queue (
   id uuid primary key default gen_random_uuid(),
+  post_draft_id uuid references post_drafts (id) on delete cascade,
   blog_post_id uuid references blog_posts (id) on delete set null,
-  platform text not null check (platform in ('fb', 'ig', 'both')),
+  platform text not null check (platform in ('fb', 'ig', 'threads')),
   formatted_text text not null,
+  char_count int not null,
   image_urls text[] not null default '{}',
+  -- 只對 platform='ig' 有意義：貼文上傳後，順便同步轉發到限時動態
+  -- （她的 IG 限時動態本身已連動 FB，這裡不需要另外處理 FB story）。
+  also_post_to_story boolean not null default false,
   status text not null default 'draft' check (status in ('draft', 'ready', 'posted', 'skipped')),
   posted_at timestamptz,
   posted_note text,
   created_by uuid references agents (id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint social_queue_char_limit check (char_count <= 1900)
 );
 
 alter table social_queue enable row level security;
@@ -223,8 +249,16 @@ insert into storage.buckets (id, name, public)
 values ('reports', 'reports', false)
 on conflict (id) do nothing;
 
+-- 發文用的圖片，上傳後要在 FB/IG 貼文時參考，同樣不公開，讀取一律走 signed URL。
+insert into storage.buckets (id, name, public)
+values ('post-images', 'post-images', false)
+on conflict (id) do nothing;
+
 create policy "transcripts_authenticated_all" on storage.objects for all
   using (bucket_id = 'transcripts' and auth.role() = 'authenticated');
+
+create policy "post_images_authenticated_all" on storage.objects for all
+  using (bucket_id = 'post-images' and auth.role() = 'authenticated');
 
 create policy "reports_authenticated_all" on storage.objects for all
   using (bucket_id = 'reports' and auth.role() = 'authenticated');

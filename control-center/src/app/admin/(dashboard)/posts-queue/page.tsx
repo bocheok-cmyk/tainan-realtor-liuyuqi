@@ -2,9 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { applySpacing, type Token } from "@/lib/posting/pangu-spacing";
+import { polishAction, submitQueueAction, type Platform } from "./actions";
+import { createClient } from "@/lib/supabase/client";
 
-const SAMPLE =
-  "今天要跟大家分享一間位在台南東區的3房2廳物件，總價1580萬，屋齡15年。\n\n這間房子採光非常好，離捷運站走路5分鐘。\n\n有興趣的朋友歡迎line我預約看房！";
+const CHAR_LIMIT = 1900;
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  fb: "臉書",
+  ig: "IG",
+  threads: "Threads",
+};
 
 function escapeHtml(ch: string) {
   return ch.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -17,148 +24,248 @@ function renderLineHtml(tokens: Token[]) {
         return '<mark class="rounded-sm bg-pale-terracotta px-0.5 font-semibold text-accent"> </mark>';
       }
       if (t.inserted && t.kind === "zwsp") {
-        return '<span class="border-b border-dashed border-accent/60 text-xs text-accent" title="隱藏字元，避免這行空行被平台吃掉">⋯</span>';
+        return '<span class="border-b border-dashed border-accent/60 text-xs text-accent">⋯</span>';
       }
       return escapeHtml(t.ch);
     })
     .join("");
 }
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(ta);
-      return ok;
-    } catch {
-      return false;
-    }
-  }
-}
+type ImageItem = { file: File; previewUrl: string };
 
 export default function PostsQueuePage() {
-  const [input, setInput] = useState("");
-  const [pangu, setPangu] = useState(true);
-  const [blankLine, setBlankLine] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [rawDraft, setRawDraft] = useState("");
+  const [polishedText, setPolishedText] = useState<string | null>(null);
+  const [polishing, setPolishing] = useState(false);
+  const [polishNote, setPolishNote] = useState<string | null>(null);
 
-  const result = useMemo(
-    () => applySpacing(input, { pangu, blankLine }),
-    [input, pangu, blankLine],
-  );
+  const [platforms, setPlatforms] = useState<Record<Platform, boolean>>({
+    fb: true,
+    ig: true,
+    threads: false,
+  });
+  const [alsoPostToStory, setAlsoPostToStory] = useState(false);
+  const [images, setImages] = useState<ImageItem[]>([]);
 
-  const previewHtml = result.lines.map(renderLineHtml).join("<br />");
-  const fbPreviewText = result.plainText.replace(/​/g, "");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
-  async function handleCopy() {
-    const ok = await copyText(result.plainText);
-    setCopied(ok);
-    setTimeout(() => setCopied(false), 1600);
+  // 目前 Threads 的改寫規則還沒定案，先跟 FB/IG 用同一份文字。
+  const sourceText = polishedText ?? rawDraft;
+  const spacing = useMemo(() => applySpacing(sourceText, { pangu: true, blankLine: true }), [sourceText]);
+  const finalText = spacing.plainText;
+  const charCount = [...finalText].length;
+  const overLimit = charCount > CHAR_LIMIT;
+
+  const previewHtml = spacing.lines.map(renderLineHtml).join("<br />");
+  const selectedPlatforms = (Object.keys(platforms) as Platform[]).filter((p) => platforms[p]);
+
+  async function handlePolish() {
+    if (!rawDraft.trim()) return;
+    setPolishing(true);
+    setPolishNote(null);
+    const result = await polishAction(rawDraft);
+    setPolishing(false);
+    setPolishedText(result.polishedText);
+    if (!result.wasPolished) {
+      setPolishNote(
+        result.error === "未設定 ANTHROPIC_API_KEY"
+          ? "還沒設定 AI 潤稿的金鑰，這裡先原樣顯示你的草稿"
+          : `AI 潤稿失敗，先用你的原始草稿（${result.error ?? ""}）`,
+      );
+    }
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setImages((prev) => [...prev, ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))]);
+    e.target.value = "";
+  }
+
+  function removeImage(index: number) {
+    setImages((prev) => {
+      URL.revokeObjectURL(prev[index].previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  async function handleSubmit() {
+    if (selectedPlatforms.length === 0 || overLimit || !finalText.trim()) return;
+    setSubmitting(true);
+    setSubmitMessage(null);
+
+    // 圖片上傳（有 Supabase 才會真的成功；沒接上時就先跳過，不擋整個流程）
+    const imageUrls: string[] = [];
+    if (images.length > 0) {
+      const supabase = createClient();
+      for (const img of images) {
+        const path = `${Date.now()}-${img.file.name}`;
+        const { data, error } = await supabase.storage.from("post-images").upload(path, img.file);
+        if (!error && data) imageUrls.push(data.path);
+      }
+    }
+
+    const result = await submitQueueAction({
+      rawDraft,
+      polishedText,
+      entries: selectedPlatforms.map((platform) => ({
+        platform,
+        formattedText: finalText,
+        charCount,
+        alsoPostToStory,
+      })),
+    });
+
+    setSubmitting(false);
+    setSubmitMessage(
+      result.ok
+        ? "已加入發文佇列，等你確認後再實際發布"
+        : `加入失敗：${result.error}（如果是資料庫連線問題，代表 Supabase 專案還沒接上）`,
+    );
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold">發文助手 — 排版優化</h1>
+    <div className="max-w-5xl">
+      <h1 className="text-2xl font-bold">發文助手</h1>
       <p className="mt-1 text-sm text-text/70">
-        貼上文章，自動補上盤古之白間距、修復 FB/IG 空行，複製後即可發文。
+        寫初稿 → AI 潤飾 → 選平台 → 自動排版優化 → 加入佇列，實際發布前你會再確認一次。
       </p>
 
-      <div className="mt-6 flex flex-wrap items-center gap-6 rounded-card border border-border bg-background px-5 py-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={pangu}
-            onChange={(e) => setPangu(e.target.checked)}
-            className="accent-primary"
+      {/* 1. 初稿 */}
+      <div className="mt-6 rounded-card border border-border bg-background p-5">
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs tracking-wide text-text/50">文章初稿（你自己寫）</span>
+          <span className="font-numeric text-xs text-text/50">{[...rawDraft].length} 字</span>
+        </div>
+        <textarea
+          value={rawDraft}
+          onChange={(e) => {
+            setRawDraft(e.target.value);
+            setPolishedText(null);
+            setPolishNote(null);
+          }}
+          placeholder="在這裡貼上你寫好的文章……"
+          className="mt-3 h-48 w-full resize-y rounded-input border border-border bg-surface/40 p-3 text-sm leading-7 outline-none focus:border-primary"
+        />
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handlePolish}
+            disabled={polishing || !rawDraft.trim()}
+            className="h-9 rounded-button bg-primary px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {polishing ? "潤飾中…" : "AI 潤飾（用你的文章風格）"}
+          </button>
+          {polishNote && <span className="text-xs text-text/50">{polishNote}</span>}
+        </div>
+      </div>
+
+      {/* 2. 潤飾結果（可編輯） */}
+      {polishedText !== null && (
+        <div className="mt-4 rounded-card border border-border bg-background p-5">
+          <span className="text-xs tracking-wide text-text/50">潤飾結果（可以直接改）</span>
+          <textarea
+            value={polishedText}
+            onChange={(e) => setPolishedText(e.target.value)}
+            className="mt-3 h-48 w-full resize-y rounded-input border border-border bg-surface/40 p-3 text-sm leading-7 outline-none focus:border-primary"
           />
-          盤古之白（中英數間距）
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={blankLine}
-            onChange={(e) => setBlankLine(e.target.checked)}
-            className="accent-primary"
-          />
-          行距修復（防止空行被吃掉）
-        </label>
+        </div>
+      )}
+
+      {/* 3. 平台選擇 */}
+      <div className="mt-4 rounded-card border border-border bg-background p-5">
+        <span className="text-xs tracking-wide text-text/50">要發到哪裡</span>
+        <div className="mt-3 flex flex-wrap gap-4">
+          {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
+            <label key={p} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={platforms[p]}
+                onChange={(e) => setPlatforms((prev) => ({ ...prev, [p]: e.target.checked }))}
+                className="accent-primary"
+              />
+              {PLATFORM_LABELS[p]}
+            </label>
+          ))}
+          <label className="flex items-center gap-2 text-sm text-text/40">
+            <input type="checkbox" disabled className="accent-primary" />
+            個人網站（尚未建置）
+          </label>
+        </div>
+        {platforms.ig && (
+          <label className="mt-3 flex items-center gap-2 text-sm text-text/70">
+            <input
+              type="checkbox"
+              checked={alsoPostToStory}
+              onChange={(e) => setAlsoPostToStory(e.target.checked)}
+              className="accent-primary"
+            />
+            IG 上傳後同步轉發到限時動態
+          </label>
+        )}
+        {platforms.threads && (
+          <p className="mt-3 text-xs text-text/50">
+            Threads 版本目前跟 FB/IG 用同一份文字——專屬的改寫規則還沒定案，之後再開發。
+          </p>
+        )}
+      </div>
+
+      {/* 4. 圖片 */}
+      <div className="mt-4 rounded-card border border-border bg-background p-5">
+        <span className="text-xs tracking-wide text-text/50">圖片</span>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {images.map((img, i) => (
+            <div key={i} className="group relative h-20 w-20 overflow-hidden rounded-input border border-border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.previewUrl} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removeImage(i)}
+                className="absolute inset-0 flex items-center justify-center bg-text/60 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                移除
+              </button>
+            </div>
+          ))}
+          <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-input border border-dashed border-border text-xs text-text/50 hover:border-primary hover:text-primary">
+            + 上傳
+            <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageSelect} />
+          </label>
+        </div>
+      </div>
+
+      {/* 5. 排版優化預覽 */}
+      <div className="mt-4 rounded-card border border-border bg-background p-5">
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs tracking-wide text-text/50">
+            排版優化預覽（自動套用盤古之白＋行距修復）
+          </span>
+          <span className={`font-numeric text-xs ${overLimit ? "font-bold text-danger" : "text-text/50"}`}>
+            {charCount} / {CHAR_LIMIT} 字
+          </span>
+        </div>
+        <div
+          className="mt-3 max-h-64 overflow-y-auto rounded-input border border-border bg-surface/40 p-3 text-sm leading-7"
+          dangerouslySetInnerHTML={{ __html: previewHtml || '<span class="text-text/40">寫點東西看看</span>' }}
+        />
+        {overLimit && (
+          <p className="mt-2 text-xs text-danger">
+            超過 1900 字上限，IG 也不允許超過，請縮短內容才能加入佇列。
+          </p>
+        )}
+      </div>
+
+      {/* 6. 送出 */}
+      <div className="mt-6 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => setInput(SAMPLE)}
-          className="ml-auto rounded-full border border-border px-3 py-1 text-xs text-text/60 hover:border-primary hover:text-primary"
+          onClick={handleSubmit}
+          disabled={submitting || selectedPlatforms.length === 0 || overLimit || !finalText.trim()}
+          className="h-11 rounded-button bg-accent px-6 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          填入範例文字
+          {submitting ? "處理中…" : "加入發文佇列"}
         </button>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <div className="rounded-card border border-border bg-background p-5">
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs tracking-wide text-text/50">輸入原文</span>
-            <span className="font-numeric text-xs text-text/50">
-              {[...input].length} 字
-            </span>
-          </div>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="在這裡貼上你要發佈的貼文內容……"
-            className="mt-3 h-80 w-full resize-y rounded-input border border-border bg-surface/40 p-3 text-sm leading-7 outline-none focus:border-primary"
-          />
-        </div>
-
-        <div className="rounded-card border border-border bg-background p-5">
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs tracking-wide text-text/50">轉換結果</span>
-            <span className="font-numeric text-xs text-text/50">
-              {[...result.plainText].length} 字
-            </span>
-          </div>
-          <div
-            className="mt-3 h-80 overflow-y-auto rounded-input border border-border bg-surface/40 p-3 text-sm leading-7"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-          />
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <div className="font-numeric flex gap-4 text-xs text-text/60">
-              <span>
-                補空格 <b className="text-text">{result.spaceCount}</b>
-              </span>
-              <span>
-                修復空行 <b className="text-text">{result.zwspCount}</b>
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className={`h-9 rounded-button px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 ${
-                copied ? "bg-success" : "bg-accent"
-              }`}
-            >
-              {copied ? "已複製！" : "複製轉換結果"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <p className="mb-2 text-xs tracking-wide text-text/50">Facebook 貼文預覽</p>
-        <div className="rounded-card border border-border bg-background p-5">
-          <p className="text-sm font-medium">劉育琪</p>
-          <p className="text-xs text-text/50">剛剛 · 🌐</p>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-7">
-            {fbPreviewText || "貼上文字後，這裡預覽貼文實際顯示的樣子"}
-          </p>
-        </div>
+        {submitMessage && <span className="text-sm text-text/70">{submitMessage}</span>}
       </div>
     </div>
   );
