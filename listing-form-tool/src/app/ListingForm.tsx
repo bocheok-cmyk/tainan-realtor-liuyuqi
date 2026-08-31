@@ -232,20 +232,24 @@ export default function ListingForm() {
         ["mainBuildingSqm", json.mainBuildingSqm],
         ["ancillaryBuildingSqm", json.ancillaryBuildingSqm],
         ["publicSqm", json.publicSqm],
+        ["address", json.address],
+        ["landLocation", json.landLocation],
       ] as const;
       const foundCount = fields.filter(([, v]) => v != null).length;
 
       if (foundCount === 0) {
-        setDeedVisionStatus({ ok: false, message: "AI沒有從這張截圖抓到任何面積數字，請改用手動輸入。" });
+        setDeedVisionStatus({ ok: false, message: "AI沒有從這張截圖抓到任何面積數字或地址，請改用手動輸入。" });
         return;
       }
 
       setDeedVisionStatus({
         ok: true,
-        message: `辨識完成，抓到 ${foundCount} 項面積數字，請往下核對填入的欄位。（今日已用 ${json.usedToday}/${json.dailyLimit} 次）`,
+        message: `辨識完成，抓到 ${foundCount} 項欄位，請往下核對填入的內容。（今日已用 ${json.usedToday}/${json.dailyLimit} 次）`,
       });
       setData((d) => ({
         ...d,
+        address: !isLand && json.address ? json.address : d.address,
+        landLocation: isLand && json.landLocation ? json.landLocation : d.landLocation,
         landArea:
           !isLand && json.landSqm != null
             ? {
@@ -509,6 +513,7 @@ export default function ListingForm() {
             <h2 style={sectionTitle}>謄本AI辨識（截圖或PDF皆可，僅供草稿）</h2>
             <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>
               適合上面「謄本上傳」抓不到字的情況（例如PDF文字層讀不到、只抓得到浮水印文字）。
+              會一併讀出「建物門牌／土地坐落」自動填入地址，這樣下面依地址查詢的按鈕就會一起打開。
               需要在伺服器設定 GEMINI_API_KEY 才能使用，且每日有全站共用次數上限。
             </p>
             <div
