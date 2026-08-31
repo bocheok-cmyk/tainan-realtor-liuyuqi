@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guessDeedFieldsFromImage } from "@/lib/deed-vision";
+import { guessDeedFieldsFromImages } from "@/lib/deed-vision";
 import { tryConsumeDailyQuota } from "@/lib/rate-limit";
 
 const DAILY_LIMIT = 50;
+const MAX_FILES = 6;
 
 export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const files = form.getAll("files").filter((f): f is File => f instanceof File);
+  if (files.length === 0) {
+    return NextResponse.json({ error: "沒有收到圖片" }, { status: 400 });
+  }
+  if (files.length > MAX_FILES) {
+    return NextResponse.json({ error: `一次最多上傳 ${MAX_FILES} 張截圖` }, { status: 400 });
+  }
+
   const quota = await tryConsumeDailyQuota(DAILY_LIMIT);
   if (!quota.allowed) {
     return NextResponse.json(
@@ -13,16 +23,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const form = await req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "沒有收到圖片" }, { status: 400 });
-  }
+  const images = await Promise.all(
+    files.map(async (file) => ({
+      data: Buffer.from(await file.arrayBuffer()).toString("base64"),
+      mimeType: file.type || "image/png",
+    }))
+  );
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const base64 = buffer.toString("base64");
-  const mimeType = file.type || "image/png";
-
-  const guess = await guessDeedFieldsFromImage(base64, mimeType);
+  const guess = await guessDeedFieldsFromImages(images);
   return NextResponse.json({ ...guess, usedToday: quota.usedToday, dailyLimit: DAILY_LIMIT });
 }

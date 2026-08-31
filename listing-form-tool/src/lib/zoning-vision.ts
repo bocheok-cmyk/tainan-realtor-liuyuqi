@@ -38,8 +38,7 @@ export async function guessZoningFieldsFromImage(
   const { text, errorNote } = await callGeminiVisionJSON(
     SYSTEM_PROMPT,
     "請讀取這張都市計畫分區查詢截圖並回傳JSON。",
-    imageBase64,
-    mimeType
+    [{ data: imageBase64, mimeType }]
   );
   if (errorNote) return { ...EMPTY, note: errorNote };
 

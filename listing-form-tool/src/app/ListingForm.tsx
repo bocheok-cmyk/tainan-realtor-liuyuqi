@@ -205,12 +205,13 @@ export default function ListingForm() {
     }
   }
 
-  async function handleDeedImageUpload(file: File) {
+  async function handleDeedImageUpload(files: File[]) {
+    if (files.length === 0) return;
     setDeedVisionBusy(true);
     setDeedVisionStatus(null);
     try {
       const form = new FormData();
-      form.append("file", file);
+      files.forEach((f) => form.append("files", f));
       const res = await fetch("/api/parse-deed-vision", { method: "POST", body: form });
       const json = await res.json();
 
@@ -234,11 +235,13 @@ export default function ListingForm() {
         ["publicSqm", json.publicSqm],
         ["address", json.address],
         ["landLocation", json.landLocation],
+        ["mortgageWan", json.mortgageWan],
+        ["mortgagee", json.mortgagee],
       ] as const;
       const foundCount = fields.filter(([, v]) => v != null).length;
 
       if (foundCount === 0) {
-        setDeedVisionStatus({ ok: false, message: "AI沒有從這張截圖抓到任何面積數字或地址，請改用手動輸入。" });
+        setDeedVisionStatus({ ok: false, message: "AI沒有從這些截圖抓到任何面積數字、地址或抵押資料，請改用手動輸入。" });
         return;
       }
 
@@ -269,6 +272,8 @@ export default function ListingForm() {
             : d.ancillaryArea,
         publicArea:
           json.publicSqm != null ? { sqm: json.publicSqm, ping: sqmToPing(json.publicSqm) } : d.publicArea,
+        mortgageWan: json.mortgageWan != null ? json.mortgageWan : d.mortgageWan,
+        mortgagee: json.mortgagee ? json.mortgagee : d.mortgagee,
       }));
     } catch {
       setDeedVisionStatus({ ok: false, message: "辨識過程發生錯誤，請改用手動輸入。" });
@@ -513,7 +518,8 @@ export default function ListingForm() {
             <h2 style={sectionTitle}>謄本AI辨識（截圖或PDF皆可，僅供草稿）</h2>
             <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>
               適合上面「謄本上傳」抓不到字的情況（例如PDF文字層讀不到、只抓得到浮水印文字）。
-              會一併讀出「建物門牌／土地坐落」自動填入地址，這樣下面依地址查詢的按鈕就會一起打開。
+              土地謄本、建物謄本、他項權利部常常是分開的文件，可以一次選多張截圖一起上傳，AI會合併讀取，
+              一併讀出「建物門牌／土地坐落」自動填入地址（下面依地址查詢的按鈕就會一起打開），也會讀他項權利部的抵押設定金額跟權利人。
               需要在伺服器設定 GEMINI_API_KEY 才能使用，且每日有全站共用次數上限。
             </p>
             <div
@@ -526,13 +532,13 @@ export default function ListingForm() {
               onDrop={(e) => {
                 e.preventDefault();
                 setDeedVisionDragOver(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) handleDeedImageUpload(file);
+                const files = Array.from(e.dataTransfer.files || []);
+                if (files.length > 0) handleDeedImageUpload(files);
               }}
               onPaste={(e) => {
-                const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith("image/"));
-                const file = item?.getAsFile();
-                if (file) handleDeedImageUpload(file);
+                const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith("image/"));
+                const files = items.map((i) => i.getAsFile()).filter((f): f is File => f !== null);
+                if (files.length > 0) handleDeedImageUpload(files);
               }}
               style={{
                 border: `2px dashed ${deedVisionDragOver ? primary : border}`,
@@ -544,12 +550,17 @@ export default function ListingForm() {
               }}
             >
               <p style={{ fontSize: 13, color: muted, marginBottom: 8 }}>
-                把截圖拖曳到這裡、或點這裡後按 Ctrl+V 貼上剪貼簿截圖，也可以直接選檔案
+                把截圖拖曳到這裡（可一次拖多張）、或點這裡後按 Ctrl+V 貼上剪貼簿截圖，也可以直接選檔案（可複選）
               </p>
               <input
                 type="file"
                 accept="image/*,application/pdf"
-                onChange={(e) => e.target.files?.[0] && handleDeedImageUpload(e.target.files[0])}
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) handleDeedImageUpload(files);
+                  e.target.value = "";
+                }}
               />
             </div>
             {deedVisionBusy && <p style={{ fontSize: 13, color: muted }}>AI辨識中…</p>}
