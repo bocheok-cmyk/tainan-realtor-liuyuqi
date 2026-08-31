@@ -138,6 +138,7 @@ export default function ListingForm() {
   const isPresale = caseType === "房屋買賣-預售屋";
   const isHouseSale = caseType === "房屋買賣-成屋";
   const isLandSale = caseType === "土地買賣";
+  const missingAddress = isLand ? !data.landLocation : !data.address;
 
   function set<K extends keyof ListingData>(key: K, value: ListingData[K]) {
     setData((d) => ({ ...d, [key]: value }));
@@ -758,11 +759,16 @@ export default function ListingForm() {
             <button
               type="button"
               onClick={handleGeoLookup}
-              disabled={geoLookupBusy || (isLand ? !data.landLocation : !data.address)}
+              disabled={geoLookupBusy || missingAddress}
               style={{ ...buttonSecondary, width: "100%", marginBottom: 8 }}
             >
               {geoLookupBusy ? "查詢中…" : "依地址自動查詢使用分區／重劃區（在地地圖資料）"}
             </button>
+            {missingAddress && (
+              <p style={{ fontSize: 12, color: "#b45309", marginBottom: 12 }}>
+                ⚠ 請先在上面「基本資料」填寫{isLand ? "土地坐落" : "地址"}，按鈕才會啟用
+              </p>
+            )}
             {geoLookupStatus && (
               <p style={{ fontSize: 13, color: geoLookupStatus.ok ? "#166534" : "#b45309", marginBottom: 12 }}>
                 {geoLookupStatus.ok ? "✓ " : "⚠ "}
@@ -903,11 +909,16 @@ export default function ListingForm() {
             <button
               type="button"
               onClick={handleFindFloodRisk}
-              disabled={floodBusy || (isLand ? !data.landLocation : !data.address)}
+              disabled={floodBusy || missingAddress}
               style={{ ...buttonSecondary, width: "100%", marginBottom: 8 }}
             >
               {floodBusy ? "查詢中…" : "依地址查詢淹水潛勢（NCDR）"}
             </button>
+            {missingAddress && (
+              <p style={{ fontSize: 12, color: "#b45309", marginBottom: 8 }}>
+                ⚠ 請先在上面「基本資料」填寫{isLand ? "土地坐落" : "地址"}，按鈕才會啟用
+              </p>
+            )}
             {floodResult && !floodResult.configured && (
               <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>
                 尚未設定 GOOGLE_MAPS_API_KEY（需要先轉經緯度），請直接手動填寫下面欄位。
@@ -1182,11 +1193,16 @@ export default function ListingForm() {
             <button
               type="button"
               onClick={handleFindNearby}
-              disabled={nearbyBusy || (isLand ? !data.landLocation : !data.address)}
+              disabled={nearbyBusy || missingAddress}
               style={{ ...buttonSecondary, width: "100%", marginBottom: 12 }}
             >
               {nearbyBusy ? "查詢中…" : "依地址查詢附近設施（Google）"}
             </button>
+            {missingAddress && (
+              <p style={{ fontSize: 12, color: "#b45309", marginBottom: 12 }}>
+                ⚠ 請先在上面「基本資料」填寫{isLand ? "土地坐落" : "地址"}，按鈕才會啟用
+              </p>
+            )}
             {nearbyResults && !nearbyResults.configured && (
               <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>
                 尚未設定 GOOGLE_MAPS_API_KEY，請直接手動填寫下面欄位。
