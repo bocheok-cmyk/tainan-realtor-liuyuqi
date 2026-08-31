@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ListingData,
   AreaField,
@@ -121,6 +121,8 @@ export default function ListingForm() {
   const [deedVisionBusy, setDeedVisionBusy] = useState(false);
   const [deedVisionStatus, setDeedVisionStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [deedVisionDragOver, setDeedVisionDragOver] = useState(false);
+  const [deedVisionStagedFiles, setDeedVisionStagedFiles] = useState<File[]>([]);
+  const [deedVisionPreviewUrls, setDeedVisionPreviewUrls] = useState<string[]>([]);
   const [zoningVisionBusy, setZoningVisionBusy] = useState(false);
   const [zoningVisionStatus, setZoningVisionStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [zoningVisionDragOver, setZoningVisionDragOver] = useState(false);
@@ -139,6 +141,14 @@ export default function ListingForm() {
   const isHouseSale = caseType === "房屋買賣-成屋";
   const isLandSale = caseType === "土地買賣";
   const missingAddress = isLand ? !data.landLocation : !data.address;
+
+  useEffect(() => {
+    const urls = deedVisionStagedFiles.map((f) => URL.createObjectURL(f));
+    setDeedVisionPreviewUrls(urls);
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [deedVisionStagedFiles]);
 
   function set<K extends keyof ListingData>(key: K, value: ListingData[K]) {
     setData((d) => ({ ...d, [key]: value }));
@@ -205,13 +215,32 @@ export default function ListingForm() {
     }
   }
 
-  async function handleDeedImageUpload(files: File[]) {
+  const MAX_DEED_VISION_FILES = 6;
+
+  function addDeedVisionFiles(files: File[]) {
     if (files.length === 0) return;
+    setDeedVisionStatus(null);
+    setDeedVisionStagedFiles((prev) => {
+      const combined = [...prev, ...files];
+      if (combined.length > MAX_DEED_VISION_FILES) {
+        setDeedVisionStatus({ ok: false, message: `一次最多 ${MAX_DEED_VISION_FILES} 張，超過的先不加入，請先送出辨識或移除幾張。` });
+        return combined.slice(0, MAX_DEED_VISION_FILES);
+      }
+      return combined;
+    });
+  }
+
+  function removeDeedVisionFile(index: number) {
+    setDeedVisionStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function submitDeedVisionRecognition() {
+    if (deedVisionStagedFiles.length === 0) return;
     setDeedVisionBusy(true);
     setDeedVisionStatus(null);
     try {
       const form = new FormData();
-      files.forEach((f) => form.append("files", f));
+      deedVisionStagedFiles.forEach((f) => form.append("files", f));
       const res = await fetch("/api/parse-deed-vision", { method: "POST", body: form });
       const json = await res.json();
 
@@ -225,6 +254,7 @@ export default function ListingForm() {
       }
       if (json.note) {
         setDeedVisionStatus({ ok: false, message: json.note });
+        setDeedVisionStagedFiles([]);
         return;
       }
 
@@ -242,6 +272,7 @@ export default function ListingForm() {
 
       if (foundCount === 0) {
         setDeedVisionStatus({ ok: false, message: "AI沒有從這些截圖抓到任何面積數字、地址或抵押資料，請改用手動輸入。" });
+        setDeedVisionStagedFiles([]);
         return;
       }
 
@@ -249,6 +280,7 @@ export default function ListingForm() {
         ok: true,
         message: `辨識完成，抓到 ${foundCount} 項欄位，請往下核對填入的內容。（今日已用 ${json.usedToday}/${json.dailyLimit} 次）`,
       });
+      setDeedVisionStagedFiles([]);
       setData((d) => ({
         ...d,
         address: !isLand && json.address ? json.address : d.address,
@@ -518,8 +550,9 @@ export default function ListingForm() {
             <h2 style={sectionTitle}>謄本AI辨識（截圖或PDF皆可，僅供草稿）</h2>
             <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>
               適合上面「謄本上傳」抓不到字的情況（例如PDF文字層讀不到、只抓得到浮水印文字）。
-              土地謄本、建物謄本、他項權利部常常是分開的文件，可以一次選多張截圖一起上傳，AI會合併讀取，
-              一併讀出「建物門牌／土地坐落」自動填入地址（下面依地址查詢的按鈕就會一起打開），也會讀他項權利部的抵押設定金額跟權利人。
+              土地謄本、建物謄本、他項權利部常常是分開的文件，可以先把每一份都加進來（最多{MAX_DEED_VISION_FILES}張），
+              全部加完之後再按「送出辨識」，這樣AI只會合併判讀一次，不會每加一張就用掉一次額度。
+              會一併讀出「建物門牌／土地坐落」自動填入地址（下面依地址查詢的按鈕就會一起打開），也會讀他項權利部的抵押設定金額跟權利人。
               需要在伺服器設定 GEMINI_API_KEY 才能使用，且每日有全站共用次數上限。
             </p>
             <div
@@ -532,13 +565,12 @@ export default function ListingForm() {
               onDrop={(e) => {
                 e.preventDefault();
                 setDeedVisionDragOver(false);
-                const files = Array.from(e.dataTransfer.files || []);
-                if (files.length > 0) handleDeedImageUpload(files);
+                addDeedVisionFiles(Array.from(e.dataTransfer.files || []));
               }}
               onPaste={(e) => {
                 const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith("image/"));
                 const files = items.map((i) => i.getAsFile()).filter((f): f is File => f !== null);
-                if (files.length > 0) handleDeedImageUpload(files);
+                addDeedVisionFiles(files);
               }}
               style={{
                 border: `2px dashed ${deedVisionDragOver ? primary : border}`,
@@ -550,20 +582,105 @@ export default function ListingForm() {
               }}
             >
               <p style={{ fontSize: 13, color: muted, marginBottom: 8 }}>
-                把截圖拖曳到這裡（可一次拖多張）、或點這裡後按 Ctrl+V 貼上剪貼簿截圖，也可以直接選檔案（可複選）
+                把截圖拖曳到這裡（可一次拖多張、也可以分好幾次拖）、或點這裡後按 Ctrl+V 貼上剪貼簿截圖，也可以直接選檔案（可複選）
               </p>
               <input
                 type="file"
                 accept="image/*,application/pdf"
                 multiple
                 onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length > 0) handleDeedImageUpload(files);
+                  addDeedVisionFiles(Array.from(e.target.files || []));
                   e.target.value = "";
                 }}
               />
             </div>
-            {deedVisionBusy && <p style={{ fontSize: 13, color: muted }}>AI辨識中…</p>}
+
+            {deedVisionStagedFiles.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                {deedVisionStagedFiles.map((file, i) => (
+                  <div
+                    key={`${file.name}-${i}`}
+                    style={{
+                      position: "relative",
+                      width: 72,
+                      height: 72,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      border: `1px solid ${border}`,
+                      background: bg,
+                    }}
+                  >
+                    {file.type.startsWith("image/") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={deedVisionPreviewUrls[i]}
+                        alt={file.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 11,
+                          color: muted,
+                          padding: 4,
+                          textAlign: "center",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {file.name}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeDeedVisionFile(i)}
+                      aria-label="移除"
+                      style={{
+                        position: "absolute",
+                        top: 2,
+                        right: 2,
+                        width: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        border: "none",
+                        background: "rgba(0,0,0,0.55)",
+                        color: "#fff",
+                        fontSize: 11,
+                        lineHeight: "18px",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={submitDeedVisionRecognition}
+                disabled={deedVisionBusy || deedVisionStagedFiles.length === 0}
+                style={{
+                  ...buttonSecondary,
+                  opacity: deedVisionBusy || deedVisionStagedFiles.length === 0 ? 0.5 : 1,
+                }}
+              >
+                {deedVisionBusy ? "AI辨識中…" : `送出辨識（${deedVisionStagedFiles.length}張）`}
+              </button>
+              {deedVisionStagedFiles.length > 0 && !deedVisionBusy && (
+                <button type="button" onClick={() => setDeedVisionStagedFiles([])} style={buttonSecondary}>
+                  清空重選
+                </button>
+              )}
+            </div>
+
             {deedVisionStatus && (
               <p style={{ fontSize: 13, color: deedVisionStatus.ok ? "#166534" : "#b45309", marginTop: 6 }}>
                 {deedVisionStatus.ok ? "✓ " : "⚠ "}
