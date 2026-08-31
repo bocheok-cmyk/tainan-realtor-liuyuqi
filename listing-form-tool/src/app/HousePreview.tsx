@@ -177,7 +177,11 @@ export function HousePreview({
             </td>
             <td style={th}>車位</td>
             <td style={cell}>
-              {data.parkingType || "—"}（{data.parkingArea.ping ?? "—"} 坪，編號 {data.parkingPosition || "—"}）
+              {data.parkingType || "—"}
+              {data.parkingType === "坡道機械車位" && data.parkingMechanicalLevel
+                ? `（${data.parkingMechanicalLevel}）`
+                : ""}
+              （{data.parkingArea.ping ?? "—"} 坪，編號 {data.parkingPosition || "—"}）
             </td>
           </tr>
           <tr>
@@ -185,6 +189,15 @@ export function HousePreview({
             <td style={cell} colSpan={3}>
               同層 {data.unitsPerFloor ?? "—"} 戶／地下 {data.basementFloors ?? "—"} 層／電梯 {data.elevators ?? "—"}{" "}
               台／採光 {data.lightingFaces ?? "—"} 面
+            </td>
+          </tr>
+          <tr>
+            <td style={th}>垃圾集中回收處</td>
+            <td style={cell} colSpan={3}>
+              {data.garbageCollection || "—"}
+              {data.garbageCollection === "有（有時間限制）" && data.garbageCollectionTime
+                ? `　時間：${data.garbageCollectionTime}`
+                : ""}
             </td>
           </tr>
           {isHouseSale && (

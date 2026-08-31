@@ -112,6 +112,17 @@ function AreaInput({
   );
 }
 
+const PARKING_TYPES = [
+  "坡道平面車位",
+  "坡道機械車位",
+  "機械平面車位",
+  "塔式車位",
+  "一樓停車位",
+  "露天車位",
+  "自有車庫",
+  "無車位",
+];
+
 export default function ListingForm() {
   const [caseType, setCaseType] = useState<CaseType>("房屋買賣-成屋");
   const [data, setData] = useState<ListingData>(emptyListing());
@@ -134,6 +145,7 @@ export default function ListingForm() {
   const [floodResult, setFloodResult] = useState<FloodResponse | null>(null);
   const [featuresBusy, setFeaturesBusy] = useState(false);
   const [featuresSource, setFeaturesSource] = useState<"rule" | "claude" | null>(null);
+  const [layoutRoomsCustom, setLayoutRoomsCustom] = useState(false);
 
   const isLand = isLandCase(caseType);
   const isHouse = isHouseCase(caseType);
@@ -1099,13 +1111,35 @@ export default function ListingForm() {
                 <div>
                   <span style={label}>格局（房/廳/衛）</span>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <input
-                      style={input}
-                      type="number"
-                      placeholder="房"
-                      value={data.layoutRooms ?? ""}
-                      onChange={(e) => set("layoutRooms", e.target.value === "" ? null : parseInt(e.target.value))}
-                    />
+                    {!layoutRoomsCustom ? (
+                      <select
+                        style={input}
+                        value={data.layoutRooms ?? ""}
+                        onChange={(e) => {
+                          if (e.target.value === "custom") {
+                            setLayoutRoomsCustom(true);
+                          } else {
+                            set("layoutRooms", e.target.value === "" ? null : parseInt(e.target.value));
+                          }
+                        }}
+                      >
+                        <option value="">房</option>
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                        <option value="custom">其他（自填）</option>
+                      </select>
+                    ) : (
+                      <input
+                        style={input}
+                        type="number"
+                        placeholder="房（自填）"
+                        value={data.layoutRooms ?? ""}
+                        onChange={(e) => set("layoutRooms", e.target.value === "" ? null : parseInt(e.target.value))}
+                      />
+                    )}
                     <input
                       style={input}
                       type="number"
@@ -1179,13 +1213,17 @@ export default function ListingForm() {
                       value={data.elevators ?? ""}
                       onChange={(e) => set("elevators", e.target.value === "" ? null : parseInt(e.target.value))}
                     />
-                    <input
+                    <select
                       style={input}
-                      type="number"
-                      placeholder="採光"
                       value={data.lightingFaces ?? ""}
                       onChange={(e) => set("lightingFaces", e.target.value === "" ? null : parseInt(e.target.value))}
-                    />
+                    >
+                      <option value="">採光</option>
+                      <option value={1}>單面採光</option>
+                      <option value={2}>雙面採光</option>
+                      <option value={3}>三面採光</option>
+                      <option value={4}>四面採光</option>
+                    </select>
                   </div>
                 </div>
                 <div>
@@ -1230,7 +1268,9 @@ export default function ListingForm() {
                       onChange={(e) => set("managementFeeCycle", e.target.value as ListingData["managementFeeCycle"])}
                     >
                       <option>月繳</option>
+                      <option>雙月繳</option>
                       <option>季繳</option>
+                      <option>半年繳</option>
                       <option>年繳</option>
                     </select>
                   </div>
@@ -1254,6 +1294,32 @@ export default function ListingForm() {
                         onChange={(e) => set("taxGeneral", e.target.value === "" ? null : parseFloat(e.target.value))}
                       />
                     </div>
+                  </div>
+                )}
+              </div>
+              <div style={row}>
+                <div>
+                  <span style={label}>垃圾集中回收處</span>
+                  <select
+                    style={input}
+                    value={data.garbageCollection}
+                    onChange={(e) => set("garbageCollection", e.target.value as ListingData["garbageCollection"])}
+                  >
+                    <option value="">請選擇</option>
+                    <option value="無">無</option>
+                    <option value="有（無時間限制）">有（無時間限制）</option>
+                    <option value="有（有時間限制）">有（有時間限制）</option>
+                  </select>
+                </div>
+                {data.garbageCollection === "有（有時間限制）" && (
+                  <div>
+                    <span style={label}>收運時間</span>
+                    <input
+                      style={input}
+                      placeholder="例：每日18:00-20:00"
+                      value={data.garbageCollectionTime}
+                      onChange={(e) => set("garbageCollectionTime", e.target.value)}
+                    />
                   </div>
                 )}
               </div>
@@ -1281,8 +1347,23 @@ export default function ListingForm() {
               <h2 style={sectionTitle}>車位</h2>
               <div style={row}>
                 <div>
-                  <span style={label}>停車方式（例：坡道式平面車位）</span>
-                  <input style={input} value={data.parkingType} onChange={(e) => set("parkingType", e.target.value)} />
+                  <span style={label}>停車方式</span>
+                  <select
+                    style={input}
+                    value={data.parkingType}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      set("parkingType", v);
+                      if (v !== "坡道機械車位") set("parkingMechanicalLevel", "");
+                    }}
+                  >
+                    <option value="">請選擇</option>
+                    {PARKING_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <span style={label}>編號</span>
@@ -1293,6 +1374,25 @@ export default function ListingForm() {
                   />
                 </div>
               </div>
+              {data.parkingType === "坡道機械車位" && (
+                <div style={row}>
+                  <div>
+                    <span style={label}>機械車位樓層</span>
+                    <select
+                      style={input}
+                      value={data.parkingMechanicalLevel}
+                      onChange={(e) =>
+                        set("parkingMechanicalLevel", e.target.value as ListingData["parkingMechanicalLevel"])
+                      }
+                    >
+                      <option value="">請選擇</option>
+                      <option value="上層">上層</option>
+                      <option value="中層">中層</option>
+                      <option value="下層">下層</option>
+                    </select>
+                  </div>
+                </div>
+              )}
               <div>
                 <span style={label}>機車位</span>
                 <input
@@ -1343,29 +1443,47 @@ export default function ListingForm() {
             )}
             {nearbyResults?.results && (
               <div style={{ fontSize: 12, color: muted, marginBottom: 12 }}>
-                {Object.entries(nearbyResults.results).map(([cat, places]) => (
-                  <div key={cat}>
-                    {cat}：
-                    {places.slice(0, 3).map((p) => (
-                      <button
-                        key={p.name}
-                        type="button"
-                        onClick={() => {
-                          const map: Record<string, keyof ListingData> = {
-                            school: "nearbySchool",
-                            park: "nearbyPark",
-                            bank: "nearbyBank",
-                            market: "nearbyMarket",
-                          };
-                          set(map[cat], p.name as never);
-                        }}
-                        style={{ marginRight: 6, border: "none", background: "none", color: primary, fontFamily: bodyFont, cursor: "pointer" }}
-                      >
-                        {p.name}（{p.distanceMeters}m）
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                <p style={{ marginBottom: 6 }}>點下面的地點名稱可以直接填入對應欄位：</p>
+                {Object.entries(nearbyResults.results).map(([cat, places]) => {
+                  const CATEGORY_LABELS: Record<string, string> = {
+                    school: "學校",
+                    park: "公園",
+                    bank: "金融機構",
+                    market: "市場",
+                  };
+                  return (
+                    <div key={cat} style={{ marginBottom: 4 }}>
+                      {CATEGORY_LABELS[cat] ?? cat}：
+                      {places.slice(0, 3).map((p) => (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => {
+                            const map: Record<string, keyof ListingData> = {
+                              school: "nearbySchool",
+                              park: "nearbyPark",
+                              bank: "nearbyBank",
+                              market: "nearbyMarket",
+                            };
+                            set(map[cat], p.name as never);
+                          }}
+                          style={{
+                            marginRight: 6,
+                            border: "none",
+                            background: "none",
+                            color: primary,
+                            fontFamily: bodyFont,
+                            fontWeight: 600,
+                            textDecoration: "underline",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {p.name}（{p.distanceMeters}m）
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div style={row}>

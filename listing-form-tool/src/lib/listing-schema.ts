@@ -58,7 +58,7 @@ export type ListingData = {
   floodRiskNote: string; // 淹水潛勢摘要（NCDR查詢結果或手動填寫）
 
   managementFee: number | null;
-  managementFeeCycle: "月繳" | "季繳" | "年繳";
+  managementFeeCycle: "月繳" | "雙月繳" | "季繳" | "半年繳" | "年繳";
 
   completionDate: string;
   layoutRooms: number | null;
@@ -72,6 +72,7 @@ export type ListingData = {
   constructionCompany: string; // 建設公司（預售屋）
 
   parkingType: string;
+  parkingMechanicalLevel: "" | "上層" | "中層" | "下層"; // 僅停車方式為「坡道機械車位」時使用
   parkingPosition: string; // 車位編號
   parkingArea: AreaField;
   motorcycleParking: string;
@@ -83,6 +84,8 @@ export type ListingData = {
   isCornerUnit: boolean; // 是否為邊間（售屋、租屋）
   hasSecurityGuard: boolean;
   material: string;
+  garbageCollection: "" | "無" | "有（無時間限制）" | "有（有時間限制）";
+  garbageCollectionTime: string; // 僅「有（有時間限制）」時使用
 
   // 稅務
   taxSelfUse: number | null; // 增值稅（自用優惠稅率，售屋）
@@ -144,6 +147,7 @@ export function emptyListing(): ListingData {
     mainUse: "集合住宅",
     constructionCompany: "",
     parkingType: "",
+    parkingMechanicalLevel: "",
     parkingPosition: "",
     parkingArea: emptyArea(),
     motorcycleParking: "",
@@ -154,6 +158,8 @@ export function emptyListing(): ListingData {
     isCornerUnit: false,
     hasSecurityGuard: false,
     material: "鋼筋混凝土",
+    garbageCollection: "",
+    garbageCollectionTime: "",
     taxSelfUse: null,
     taxGeneral: null,
     landValueIncrementTax: null,
