@@ -1,0 +1,451 @@
+/*
+ * 這一頁刻意不用 brand-system 的色票——內容是引用台南市政府地政局的公開資料，
+ * 用「官方文件」的視覺（牛皮紙色、襯線標題、雙線邊框）跟其他行銷/部落格內容做區隔，
+ * 讓讀者一眼分辨「這是客觀引用的政府資料」，不是劉育琪的行銷文案。見計畫討論。
+ */
+.page {
+  --paper: #eef0e6;
+  --surface: #f8f9f3;
+  --ink: #23281f;
+  --ink-muted: #5c6354;
+  --ink-faint: #8b917d;
+  --line: #cbd0be;
+  --line-soft: #dde1d1;
+  --red: #a8392a;
+  --red-soft: rgba(168, 57, 42, 0.1);
+  --teal: #2e6b5e;
+  --teal-soft: rgba(46, 107, 94, 0.12);
+  --amber: #a8752e;
+  --amber-soft: rgba(168, 117, 46, 0.13);
+  --slate: #4a5568;
+  --slate-soft: rgba(74, 85, 104, 0.1);
+  --font-display: "Noto Serif TC", "PMingLiU", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --paper: #1b1f17;
+    --surface: #22271d;
+    --ink: #e8e9de;
+    --ink-muted: #a3a896;
+    --ink-faint: #767c69;
+    --line: #3a4032;
+    --line-soft: #2c3126;
+    --red: #d6604c;
+    --red-soft: rgba(214, 96, 76, 0.14);
+    --teal: #5cab97;
+    --teal-soft: rgba(92, 171, 151, 0.14);
+    --amber: #c99a52;
+    --amber-soft: rgba(201, 154, 82, 0.15);
+    --slate: #93a4bd;
+    --slate-soft: rgba(147, 164, 189, 0.14);
+  }
+}
+
+.inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.header {
+  border-bottom: 3px double var(--line);
+  padding-bottom: 28px;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--red);
+  text-transform: uppercase;
+}
+
+.h1 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(28px, 4vw, 40px);
+  margin: 10px 0 12px;
+  letter-spacing: 0.01em;
+}
+
+.lede {
+  font-size: 15.5px;
+  color: var(--ink-muted);
+  max-width: 66ch;
+  margin: 0 0 10px;
+}
+
+.lede b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ledeSmall {
+  font-size: 13.5px;
+  margin-bottom: 22px;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stat {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.stat:hover {
+  border-color: var(--ink-faint);
+}
+
+.statActive {
+  border-color: currentColor;
+}
+
+.statAll {
+  color: var(--ink);
+}
+.statDone {
+  color: var(--teal);
+}
+.statDone.statActive {
+  background: var(--teal-soft);
+}
+.statWip {
+  color: var(--amber);
+}
+.statWip.statActive {
+  background: var(--amber-soft);
+}
+.statPlanning {
+  color: var(--slate);
+}
+.statPlanning.statActive {
+  background: var(--slate-soft);
+}
+.statAll.statActive {
+  background: var(--surface);
+}
+
+.statN {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.statL {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 28px 0 40px;
+}
+
+.filters input[type="search"],
+.filters select {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 9px 12px;
+}
+
+.filters input[type="search"] {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.noMatch {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 14px;
+}
+
+.mechanism {
+  margin-bottom: 56px;
+}
+
+.mechanismHead {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.mechanismHead .num {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 15px;
+  color: var(--ink-faint);
+}
+
+.mechanismHead h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.mechanismNote {
+  font-size: 13px;
+  color: var(--ink-faint);
+  margin: 0 0 20px;
+  max-width: 68ch;
+}
+
+.era {
+  margin-bottom: 36px;
+}
+
+.eraHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.eraHead .mark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 13px;
+  border-radius: 2px;
+  padding: 2px 7px;
+  letter-spacing: 0.04em;
+}
+
+.eraHead h3 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.eraPeriod {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.toneOldCity .mark,
+.toneDone .mark {
+  color: var(--teal);
+  border: 1px solid var(--teal);
+}
+.toneOldCounty .mark,
+.toneWip .mark {
+  color: var(--amber);
+  border: 1px solid var(--amber);
+}
+.toneUnified .mark,
+.tonePlanning .mark {
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.table thead th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+
+.tdName {
+  font-weight: 600;
+  color: var(--ink);
+}
+.tdDistrict {
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.tdArea {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.tdRemark {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  max-width: 24ch;
+}
+.tbd {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pillDone {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.pillWip {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.pillPlanning {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+
+.zoneGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.zoneCard {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  padding: 18px 20px;
+}
+
+.zoneCardHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 4px;
+}
+
+.zoneCardHead h4 {
+  font-family: var(--font-display);
+  font-size: 16.5px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.zoneCardMeta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.zoneCardSub {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  margin-bottom: 10px;
+}
+.zoneCardSub b {
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.zoneRange {
+  font-size: 14px;
+  color: var(--ink-muted);
+  line-height: 1.75;
+  margin: 0;
+}
+
+.sourceLink {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.footer {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.footer a {
+  color: var(--ink-muted);
+}
+.footer a:hover {
+  color: var(--red);
+}
+.caveat {
+  background: var(--red-soft);
+  border-left: 2px solid var(--red);
+  padding: 10px 14px;
+  color: var(--ink-muted);
+  border-radius: 0 3px 3px 0;
+  margin-bottom: 14px;
+}
+.caveat b {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .eraPeriod {
+    display: none;
+  }
+  .tdRemark {
+    display: none;
+  }
+}

@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/*
+ * 品牌視覺規範來源：C:\agent-os\brand-system\design-tokens.json
+ * 顏色、字體、間距、圓角一律對照該檔案，禁止自行發明新數值或色碼。
+ * 例外：/land-development 頁面（都市計畫土地開發總表）刻意使用獨立的
+ * 「官方文件」視覺（見該頁面的 land-development.css），因為內容是引用
+ * 政府公開資料，跟品牌本身要有區隔，不套用這裡的 token。
+ */
+@theme {
+  --color-background: #f7f4ef; /* 暖米白 Warm Paper */
+  --color-surface: #e8e2d7; /* 淺砂岩灰 Sandstone */
+  --color-primary: #7e9384; /* 莫蘭迪鼠尾草綠 Muted Sage */
+  --color-text: #3e463d; /* 深橄欖灰 Deep Olive */
+  --color-accent: #c77958; /* 陶土橘 Terracotta */
+  --color-border: #dadada; /* 淺冷灰 Light Gray */
+
+  --color-mist-blue-gray: #afc1c9;
+  --color-slate-gray: #b5babf;
+  --color-warm-gray-brown: #a69a8f;
+  --color-pale-sage: #dce3dc;
+  --color-pale-terracotta: #f1e3d6;
+
+  --color-info: #afc1c9;
+  --color-warning: #c77958;
+  --color-success: #7e9384;
+  --color-danger: #b15c4a;
+
+  --font-heading: var(--font-noto-serif-tc), serif;
+  --font-body: var(--font-noto-sans-tc), sans-serif;
+  --font-numeric: var(--font-inter), sans-serif;
+
+  --radius-button: 14px;
+  --radius-input: 14px;
+  --radius-card: 20px;
+  --radius-modal: 20px;
+  --radius-image: 20px;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+}
+
+.font-numeric {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
+}
